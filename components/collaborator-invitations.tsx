@@ -45,7 +45,7 @@ export function CollaboratorInvitations() {
           .from("project_collaborators")
           .select(`
             *,
-            projects (
+            projects!inner (
               title,
               description
             )

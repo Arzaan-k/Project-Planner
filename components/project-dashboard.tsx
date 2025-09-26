@@ -58,7 +58,10 @@ export function ProjectDashboard() {
       const accessibleProjectIds = await getUserProjectsClient()
       setUserProjects(accessibleProjectIds)
       
+      console.log("[v0] Accessible project IDs:", accessibleProjectIds)
+      
       if (accessibleProjectIds.length === 0) {
+        console.log("[v0] No accessible projects found")
         setProjects([])
         setIsLoading(false)
         return

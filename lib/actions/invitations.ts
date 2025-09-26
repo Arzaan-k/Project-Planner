@@ -73,6 +73,14 @@ export async function sendCollaboratorInvitation(
       .single()
 
     if (invitedUser) {
+      // Get the invitation ID we just created
+      const { data: invitationData } = await supabase
+        .from("project_collaborators")
+        .select("id")
+        .eq("project_id", projectId)
+        .eq("user_email", email.toLowerCase())
+        .single()
+
       // Create notification
       await supabase
         .from("notifications")
@@ -83,13 +91,7 @@ export async function sendCollaboratorInvitation(
           type: "invitation",
           data: {
             project_id: projectId,
-            invitation_id: (await supabase
-              .from("project_collaborators")
-              .select("id")
-              .eq("project_id", projectId)
-              .eq("user_email", email.toLowerCase())
-              .single()
-            ).data?.id
+            invitation_id: invitationData?.id
           }
         })
     }
@@ -130,6 +132,7 @@ export async function respondToInvitation(
     if (response === "accepted") {
       updateData.accepted_at = new Date().toISOString()
       updateData.user_id = user.id
+      updateData.updated_at = new Date().toISOString()
     }
 
     const { error } = await supabase

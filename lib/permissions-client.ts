@@ -123,6 +123,16 @@ export async function getUserProjectsClient(): Promise<string[]> {
         .eq("status", "accepted")
 
       collaboratedProjectIds = collaboratedProjects?.map(c => c.project_id) || []
+      
+      // Also check for invitations by email (in case user_id wasn't set properly)
+      const { data: emailCollaboratedProjects } = await supabase
+        .from("project_collaborators")
+        .select("project_id")
+        .eq("user_email", user.email)
+        .eq("status", "accepted")
+
+      const emailProjectIds = emailCollaboratedProjects?.map(c => c.project_id) || []
+      collaboratedProjectIds = [...collaboratedProjectIds, ...emailProjectIds]
     } catch (collaborationError) {
       // If project_collaborators table doesn't exist or has issues, just return owned projects
       console.log("Collaboration table not available, returning only owned projects")
@@ -133,7 +143,13 @@ export async function getUserProjectsClient(): Promise<string[]> {
       ...collaboratedProjectIds
     ]
 
-    return [...new Set(projectIds)] // Remove duplicates
+    const uniqueProjectIds = [...new Set(projectIds)] // Remove duplicates
+    
+    console.log("[v0] getUserProjectsClient - Owned projects:", ownedProjects?.length || 0)
+    console.log("[v0] getUserProjectsClient - Collaborated projects:", collaboratedProjectIds.length)
+    console.log("[v0] getUserProjectsClient - Total accessible projects:", uniqueProjectIds.length)
+    
+    return uniqueProjectIds
   } catch (error) {
     console.error("Error getting user projects:", error)
     return []
