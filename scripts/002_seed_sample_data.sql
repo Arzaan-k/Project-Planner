@@ -1,0 +1,22 @@
+-- Insert sample projects (these will only work after user authentication)
+-- This is just for reference - actual data will be inserted through the app
+
+-- Sample project data structure:
+-- INSERT INTO projects (title, description, github_link, deployment_link, tech_stack, business_implementation, start_date, end_date, status, priority, progress, user_id)
+-- VALUES (
+--   'E-commerce Platform',
+--   'A full-stack e-commerce platform with user authentication, product management, and payment processing.',
+--   'https://github.com/user/ecommerce-platform',
+--   'https://ecommerce-platform.vercel.app',
+--   ARRAY['Next.js', 'TypeScript', 'Supabase', 'Stripe', 'Tailwind CSS'],
+--   'Target small to medium businesses looking to establish online presence. Revenue model through transaction fees and premium features.',
+--   '2024-01-15',
+--   '2024-04-15',
+--   'completed',
+--   'high',
+--   100,
+--   auth.uid()
+-- );
+
+-- Note: Actual sample data will be inserted through the application interface
+-- after user authentication is set up, as RLS policies require authenticated users.
