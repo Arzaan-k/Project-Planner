@@ -30,9 +30,13 @@ interface TeamMember {
 
 interface TeamManagementProps {
   projectId: string
+  permissions?: {
+    canEdit: boolean
+    canDelete: boolean
+  }
 }
 
-export function TeamManagement({ projectId }: TeamManagementProps) {
+export function TeamManagement({ projectId, permissions }: TeamManagementProps) {
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [showAddForm, setShowAddForm] = useState(false)
@@ -156,13 +160,14 @@ export function TeamManagement({ projectId }: TeamManagementProps) {
             </CardTitle>
             <CardDescription>Manage project team members and their roles</CardDescription>
           </div>
-          <Dialog open={showAddForm} onOpenChange={setShowAddForm}>
-            <DialogTrigger asChild>
-              <Button size="sm">
-                <Plus className="h-4 w-4 mr-2" />
-                Add Member
-              </Button>
-            </DialogTrigger>
+          {permissions?.canEdit !== false && (
+            <Dialog open={showAddForm} onOpenChange={setShowAddForm}>
+              <DialogTrigger asChild>
+                <Button size="sm">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Member
+                </Button>
+              </DialogTrigger>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Add Team Member</DialogTitle>
@@ -221,6 +226,7 @@ export function TeamManagement({ projectId }: TeamManagementProps) {
               </div>
             </DialogContent>
           </Dialog>
+          )}
         </div>
       </CardHeader>
       <CardContent>
@@ -269,24 +275,28 @@ export function TeamManagement({ projectId }: TeamManagementProps) {
                     {getRoleIcon(member.role)}
                     <span className="ml-1 capitalize">{member.role}</span>
                   </Badge>
-                  <Select value={member.role} onValueChange={(value) => updateMemberRole(member.id, value)}>
-                    <SelectTrigger className="w-32">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="viewer">Viewer</SelectItem>
-                      <SelectItem value="member">Member</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => removeMember(member.id)}
-                    className="text-destructive hover:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  {permissions?.canEdit && (
+                    <Select value={member.role} onValueChange={(value) => updateMemberRole(member.id, value)}>
+                      <SelectTrigger className="w-32">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="viewer">Viewer</SelectItem>
+                        <SelectItem value="member">Member</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                  {permissions?.canDelete && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => removeMember(member.id)}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               </div>
             ))}

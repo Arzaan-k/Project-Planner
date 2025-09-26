@@ -31,9 +31,14 @@ interface CollaboratorInvitationProps {
   projectId: string
   collaborators: Collaborator[]
   onCollaboratorsChange: () => void
+  permissions?: {
+    canInviteCollaborators: boolean
+    canEdit: boolean
+    canDelete: boolean
+  }
 }
 
-export function CollaboratorInvitation({ projectId, collaborators, onCollaboratorsChange }: CollaboratorInvitationProps) {
+export function CollaboratorInvitation({ projectId, collaborators, onCollaboratorsChange, permissions }: CollaboratorInvitationProps) {
   const [email, setEmail] = useState("")
   const [role, setRole] = useState<"collaborator" | "viewer">("collaborator")
   const [isInviting, setIsInviting] = useState(false)
@@ -160,13 +165,14 @@ export function CollaboratorInvitation({ projectId, collaborators, onCollaborato
             </CardTitle>
             <CardDescription>Manage who can access and edit this project</CardDescription>
           </div>
-          <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm" className="flex items-center gap-2">
-                <UserPlus className="h-4 w-4" />
-                Invite Collaborator
-              </Button>
-            </DialogTrigger>
+          {permissions?.canInviteCollaborators !== false && (
+            <Dialog open={isOpen} onOpenChange={setIsOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm" className="flex items-center gap-2">
+                  <UserPlus className="h-4 w-4" />
+                  Invite Collaborator
+                </Button>
+              </DialogTrigger>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Invite Collaborator</DialogTitle>
@@ -218,6 +224,7 @@ export function CollaboratorInvitation({ projectId, collaborators, onCollaborato
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          )}
         </div>
       </CardHeader>
       <CardContent>
@@ -255,7 +262,7 @@ export function CollaboratorInvitation({ projectId, collaborators, onCollaborato
                   <Badge className={getStatusColor(collaborator.status)}>
                     {collaborator.status}
                   </Badge>
-                  {collaborator.status === "accepted" && collaborator.role !== "owner" && (
+                  {permissions?.canEdit && collaborator.status === "accepted" && collaborator.role !== "owner" && (
                     <Select
                       value={collaborator.role}
                       onValueChange={(value) => handleUpdateRole(collaborator.id, value)}
@@ -269,7 +276,7 @@ export function CollaboratorInvitation({ projectId, collaborators, onCollaborato
                       </SelectContent>
                     </Select>
                   )}
-                  {collaborator.role !== "owner" && (
+                  {permissions?.canDelete && collaborator.role !== "owner" && (
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button variant="outline" size="sm">

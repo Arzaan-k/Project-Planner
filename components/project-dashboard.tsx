@@ -337,7 +337,7 @@ export function ProjectDashboard() {
                           View Details
                         </Button>
                       </Link>
-                      {currentUserId === project.user_id && (
+                      {(currentUserId === project.user_id || userProjects.includes(project.id)) && (
                         <>
                           <Button variant="outline" size="sm" onClick={() => handleEdit(project)}>
                             Edit

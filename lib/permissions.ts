@@ -52,10 +52,30 @@ export async function checkProjectPermission(projectId: string): Promise<Project
     if (collaboration) {
       const permissions: ProjectPermission = {
         canView: true,
-        canEdit: collaboration.role === 'collaborator',
-        canDelete: false,
-        canInviteCollaborators: false,
-        role: collaboration.role as 'collaborator' | 'viewer'
+        canEdit: true, // Full edit access
+        canDelete: true, // Full delete access
+        canInviteCollaborators: true, // Can invite other collaborators
+        role: 'collaborator' // Treat as full collaborator
+      }
+      return permissions
+    }
+
+    // Also check by email (for Google Sheets style sharing)
+    const { data: emailCollaboration } = await supabase
+      .from("project_collaborators")
+      .select("role, status")
+      .eq("project_id", projectId)
+      .eq("user_email", user.email)
+      .eq("status", "accepted")
+      .single()
+
+    if (emailCollaboration) {
+      const permissions: ProjectPermission = {
+        canView: true,
+        canEdit: true, // Full edit access
+        canDelete: true, // Full delete access
+        canInviteCollaborators: true, // Can invite other collaborators
+        role: 'collaborator' // Treat as full collaborator
       }
       return permissions
     }

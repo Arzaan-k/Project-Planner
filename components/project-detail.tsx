@@ -169,15 +169,24 @@ export function ProjectDetail({ projectId, permissions }: ProjectDetailProps) {
       if (teamError) throw teamError
       setTeamMembers(teamData || [])
 
-      // Fetch collaborators
-      const { data: collaboratorsData, error: collaboratorsError } = await supabase
-        .from("project_collaborators")
-        .select("*")
-        .eq("project_id", projectId)
-        .order("invited_at", { ascending: false })
+      // Fetch collaborators (with error handling)
+      try {
+        const { data: collaboratorsData, error: collaboratorsError } = await supabase
+          .from("project_collaborators")
+          .select("*")
+          .eq("project_id", projectId)
+          .order("invited_at", { ascending: false })
 
-      if (collaboratorsError) throw collaboratorsError
-      setCollaborators(collaboratorsData || [])
+        if (collaboratorsError) {
+          console.log("Collaboration system not available (this is normal if not set up yet):", collaboratorsError.message)
+          setCollaborators([])
+        } else {
+          setCollaborators(collaboratorsData || [])
+        }
+      } catch (collaborationError) {
+        console.log("Collaboration system not available:", collaborationError.message)
+        setCollaborators([])
+      }
     } catch (error) {
       console.error("Error fetching project data:", error)
     } finally {
@@ -681,25 +690,24 @@ export function ProjectDetail({ projectId, permissions }: ProjectDetailProps) {
           </TabsContent>
 
           <TabsContent value="team">
-            <TeamManagement projectId={projectId} />
+            <TeamManagement projectId={projectId} permissions={permissions} />
           </TabsContent>
 
-          {permissions.canInviteCollaborators && (
-            <TabsContent value="collaborators">
-              <CollaboratorInvitation 
-                projectId={projectId} 
-                collaborators={collaborators}
-                onCollaboratorsChange={handleCollaboratorsChange}
-              />
-            </TabsContent>
-          )}
+          <TabsContent value="collaborators">
+            <CollaboratorInvitation 
+              projectId={projectId} 
+              collaborators={collaborators}
+              onCollaboratorsChange={handleCollaboratorsChange}
+              permissions={permissions}
+            />
+          </TabsContent>
 
           <TabsContent value="time">
-            <TimeTracking projectId={projectId} />
+            <TimeTracking projectId={projectId} permissions={permissions} />
           </TabsContent>
 
           <TabsContent value="features">
-            <FeatureRequests projectId={projectId} />
+            <FeatureRequests projectId={projectId} permissions={permissions} />
           </TabsContent>
         </Tabs>
       </div>

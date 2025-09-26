@@ -35,9 +35,13 @@ interface FeatureRequest {
 
 interface FeatureRequestsProps {
   projectId: string
+  permissions?: {
+    canEdit: boolean
+    canDelete: boolean
+  }
 }
 
-export function FeatureRequests({ projectId }: FeatureRequestsProps) {
+export function FeatureRequests({ projectId, permissions }: FeatureRequestsProps) {
   const [requests, setRequests] = useState<FeatureRequest[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [showAddForm, setShowAddForm] = useState(false)

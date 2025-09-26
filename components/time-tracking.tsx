@@ -38,9 +38,13 @@ interface Task {
 
 interface TimeTrackingProps {
   projectId: string
+  permissions?: {
+    canEdit: boolean
+    canDelete: boolean
+  }
 }
 
-export function TimeTracking({ projectId }: TimeTrackingProps) {
+export function TimeTracking({ projectId, permissions }: TimeTrackingProps) {
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [isLoading, setIsLoading] = useState(true)

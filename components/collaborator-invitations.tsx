@@ -2,153 +2,114 @@
 
 import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
-import { Mail, UserCheck, UserX, Calendar, Users } from "lucide-react"
-import { toast } from "sonner"
-import { respondToInvitation } from "@/lib/actions/invitations"
+import { Button } from "@/components/ui/button"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Users, ExternalLink, ChevronDown, ChevronRight } from "lucide-react"
 import Link from "next/link"
 
-interface CollaboratorInvitation {
+interface SharedProject {
   id: string
   project_id: string
   user_email: string
-  role: "owner" | "collaborator" | "viewer"
-  status: "pending" | "accepted" | "declined"
+  role: string
+  status: string
   invited_at: string
-  accepted_at: string | null
   project_title: string
   project_description: string
   inviter_name: string
 }
 
 export function CollaboratorInvitations() {
-  const [invitations, setInvitations] = useState<CollaboratorInvitation[]>([])
+  const [sharedProjects, setSharedProjects] = useState<SharedProject[]>([])
   const [isLoading, setIsLoading] = useState(true)
-
+  const [isOpen, setIsOpen] = useState(false)
   const supabase = createClient()
 
   useEffect(() => {
-    fetchInvitations()
+    fetchSharedProjects()
   }, [])
 
-  const fetchInvitations = async () => {
+  const fetchSharedProjects = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      // Try to fetch invitations, but handle case where table doesn't exist
-      try {
-        const { data, error } = await supabase
-          .from("project_collaborators")
-          .select(`
-            *,
-            projects!inner (
-              title,
-              description
-            )
-          `)
-          .eq("user_email", user.email)
-          .eq("status", "pending")
-          .order("invited_at", { ascending: false })
-
-        if (error) throw error
-
-        // Transform the data to include project and inviter info
-        const transformedInvitations = data?.map(invitation => ({
-          id: invitation.id,
-          project_id: invitation.project_id,
-          user_email: invitation.user_email,
-          role: invitation.role,
-          status: invitation.status,
-          invited_at: invitation.invited_at,
-          accepted_at: invitation.accepted_at,
-          project_title: invitation.projects?.title || "Unknown Project",
-          project_description: invitation.projects?.description || "",
-          inviter_name: "Project Owner" // We could fetch this from the inviter's profile
-        })) || []
-
-        setInvitations(transformedInvitations)
-      } catch (tableError) {
-        // If project_collaborators table doesn't exist, just show empty state
-        console.log("Collaboration table not available yet")
-        setInvitations([])
+      if (!user) {
+        setSharedProjects([])
+        return
       }
+
+      console.log("Fetching shared projects for user:", user.email)
+
+      // Get projects shared with this user (Google Sheets style)
+      const { data, error } = await supabase
+        .from("project_collaborators")
+        .select(`
+          *,
+          projects (
+            title,
+            description
+          )
+        `)
+        .eq("user_email", user.email)
+        .order("invited_at", { ascending: false })
+
+      if (error) {
+        console.log("Collaboration system not available (this is normal if not set up yet):", error.message)
+        setSharedProjects([])
+        return
+      }
+
+      // Transform the data
+      const transformedProjects = data?.map(collaboration => ({
+        id: collaboration.id,
+        project_id: collaboration.project_id,
+        user_email: collaboration.user_email,
+        role: collaboration.role,
+        status: collaboration.status,
+        invited_at: collaboration.invited_at,
+        project_title: collaboration.projects?.title || "Unknown Project",
+        project_description: collaboration.projects?.description || "",
+        inviter_name: "Project Owner"
+      })) || []
+
+      setSharedProjects(transformedProjects)
     } catch (error) {
-      console.error("Error fetching invitations:", error)
-      // Don't show error toast for missing table, just log it
-      if (!error.message?.includes("project_collaborators")) {
-        toast.error("Failed to load invitations")
-      }
+      console.error("Error fetching shared projects:", error)
+      setSharedProjects([])
     } finally {
       setIsLoading(false)
-    }
-  }
-
-  const handleAcceptInvitation = async (invitationId: string) => {
-    try {
-      const result = await respondToInvitation(invitationId, "accepted")
-      
-      if (result.success) {
-        toast.success(result.message)
-        fetchInvitations()
-        // Refresh the page to update project access
-        window.location.reload()
-      } else {
-        toast.error(result.message)
-      }
-    } catch (error) {
-      console.error("Error accepting invitation:", error)
-      toast.error("Failed to accept invitation")
-    }
-  }
-
-  const handleDeclineInvitation = async (invitationId: string) => {
-    try {
-      const result = await respondToInvitation(invitationId, "declined")
-      
-      if (result.success) {
-        toast.success(result.message)
-        fetchInvitations()
-      } else {
-        toast.error(result.message)
-      }
-    } catch (error) {
-      console.error("Error declining invitation:", error)
-      toast.error("Failed to decline invitation")
-    }
-  }
-
-  const getRoleColor = (role: string) => {
-    switch (role) {
-      case "collaborator":
-        return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300"
-      case "viewer":
-        return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300"
-      default:
-        return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300"
     }
   }
 
   if (isLoading) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Mail className="h-5 w-5" />
-            Project Invitations
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Users className="h-4 w-4" />
+            Shared Projects
           </CardTitle>
-          <CardDescription>Manage your project collaboration invitations</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className="animate-pulse">
-                <div className="h-20 bg-muted rounded"></div>
-              </div>
-            ))}
+        <CardContent className="pt-0">
+          <div className="text-center py-2 text-sm text-muted-foreground">Loading...</div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (sharedProjects.length === 0) {
+    return (
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Users className="h-4 w-4" />
+            Shared Projects
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="text-center py-2 text-sm text-muted-foreground">
+            No projects shared with you
           </div>
         </CardContent>
       </Card>
@@ -157,93 +118,54 @@ export function CollaboratorInvitations() {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Mail className="h-5 w-5" />
-          Project Invitations
-        </CardTitle>
-        <CardDescription>Manage your project collaboration invitations</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {invitations.length === 0 ? (
-          <div className="text-center py-8">
-            <Mail className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No pending invitations</h3>
-            <p className="text-muted-foreground">
-              You don't have any pending project invitations at the moment.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {invitations.map((invitation) => (
-              <div key={invitation.id} className="border rounded-lg p-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <h3 className="font-semibold">{invitation.project_title}</h3>
-                      <Badge className={getRoleColor(invitation.role)}>
-                        {invitation.role}
-                      </Badge>
-                    </div>
-                    {invitation.project_description && (
-                      <p className="text-sm text-muted-foreground mb-3">
-                        {invitation.project_description.length > 100
-                          ? `${invitation.project_description.substring(0, 100)}...`
-                          : invitation.project_description}
-                      </p>
-                    )}
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <Calendar className="h-4 w-4" />
-                        Invited {new Date(invitation.invited_at).toLocaleDateString()}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Users className="h-4 w-4" />
-                        By {invitation.inviter_name}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 ml-4">
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700">
-                          <UserX className="h-4 w-4 mr-1" />
-                          Decline
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Decline Invitation</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Are you sure you want to decline the invitation to collaborate on "{invitation.project_title}"?
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => handleDeclineInvitation(invitation.id)}
-                            className="bg-red-600 hover:bg-red-700"
-                          >
-                            Decline
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                    <Button
-                      size="sm"
-                      onClick={() => handleAcceptInvitation(invitation.id)}
-                      className="bg-green-600 hover:bg-green-700"
-                    >
-                      <UserCheck className="h-4 w-4 mr-1" />
-                      Accept
-                    </Button>
+      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+        <CollapsibleTrigger asChild>
+          <CardHeader className="pb-3 cursor-pointer hover:bg-muted/50 transition-colors">
+            <CardTitle className="flex items-center justify-between text-sm">
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Shared Projects
+                <Badge variant="secondary" className="text-xs">
+                  {sharedProjects.length}
+                </Badge>
+              </div>
+              {isOpen ? (
+                <ChevronDown className="h-4 w-4" />
+              ) : (
+                <ChevronRight className="h-4 w-4" />
+              )}
+            </CardTitle>
+          </CardHeader>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <CardContent className="pt-0 space-y-2">
+            {sharedProjects.map((project) => (
+              <div key={project.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-medium text-sm truncate">{project.project_title}</h3>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {project.project_description}
+                  </p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Badge variant="secondary" className="text-xs px-1.5 py-0.5">
+                      {project.role}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(project.invited_at).toLocaleDateString()}
+                    </span>
                   </div>
                 </div>
+                <Link href={`/projects/${project.project_id}`}>
+                  <Button size="sm" variant="outline" className="ml-2 h-8 px-2">
+                    <ExternalLink className="h-3 w-3 mr-1" />
+                    Open
+                  </Button>
+                </Link>
               </div>
             ))}
-          </div>
-        )}
-      </CardContent>
+          </CardContent>
+        </CollapsibleContent>
+      </Collapsible>
     </Card>
   )
 }

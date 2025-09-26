@@ -52,10 +52,30 @@ export async function checkProjectPermissionClient(projectId: string): Promise<P
     if (collaboration) {
       const permissions: ProjectPermission = {
         canView: true,
-        canEdit: collaboration.role === 'collaborator',
-        canDelete: false,
-        canInviteCollaborators: false,
-        role: collaboration.role as 'collaborator' | 'viewer'
+        canEdit: true, // Full edit access
+        canDelete: true, // Full delete access
+        canInviteCollaborators: true, // Can invite other collaborators
+        role: 'collaborator' // Treat as full collaborator
+      }
+      return permissions
+    }
+
+    // Also check by email (for Google Sheets style sharing)
+    const { data: emailCollaboration } = await supabase
+      .from("project_collaborators")
+      .select("role, status")
+      .eq("project_id", projectId)
+      .eq("user_email", user.email)
+      .eq("status", "accepted")
+      .single()
+
+    if (emailCollaboration) {
+      const permissions: ProjectPermission = {
+        canView: true,
+        canEdit: true, // Full edit access
+        canDelete: true, // Full delete access
+        canInviteCollaborators: true, // Can invite other collaborators
+        role: 'collaborator' // Treat as full collaborator
       }
       return permissions
     }
@@ -104,38 +124,69 @@ export async function getUserProjectsClient(): Promise<string[]> {
   
   try {
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return []
+    if (!user) {
+      console.log("[v0] getUserProjectsClient - No user authenticated")
+      return []
+    }
+
+    console.log("[v0] getUserProjectsClient - User:", user.email)
 
     // Get projects owned by user
-    const { data: ownedProjects } = await supabase
+    const { data: ownedProjects, error: ownedError } = await supabase
       .from("projects")
       .select("id")
       .eq("user_id", user.id)
 
+    if (ownedError) {
+      console.error("Error fetching owned projects:", ownedError)
+    }
+
     let collaboratedProjectIds: string[] = []
 
-    // Try to get projects where user is a collaborator (if table exists)
+    // Try to get projects where user is a collaborator (with error handling)
     try {
-      const { data: collaboratedProjects } = await supabase
+      // Check by user_id first
+      const { data: collaboratedProjects, error: collabError } = await supabase
         .from("project_collaborators")
         .select("project_id")
         .eq("user_id", user.id)
-        .eq("status", "accepted")
 
-      collaboratedProjectIds = collaboratedProjects?.map(c => c.project_id) || []
+      if (collabError) {
+        console.log("Collaboration table not accessible (this is normal if not set up yet):", collabError.message)
+      } else {
+        collaboratedProjectIds = collaboratedProjects?.map(c => c.project_id) || []
+        console.log("[v0] Collaborations by user_id:", collaboratedProjectIds)
+      }
       
-      // Also check for invitations by email (in case user_id wasn't set properly)
-      const { data: emailCollaboratedProjects } = await supabase
+      // Check for collaborations by email (Google Sheets style)
+      const { data: emailCollaboratedProjects, error: emailError } = await supabase
         .from("project_collaborators")
         .select("project_id")
         .eq("user_email", user.email)
-        .eq("status", "accepted")
 
-      const emailProjectIds = emailCollaboratedProjects?.map(c => c.project_id) || []
-      collaboratedProjectIds = [...collaboratedProjectIds, ...emailProjectIds]
+      if (emailError) {
+        console.log("Email collaboration check failed (this is normal if not set up yet):", emailError.message)
+      } else {
+        const emailProjectIds = emailCollaboratedProjects?.map(c => c.project_id) || []
+        console.log("[v0] Collaborations by email:", emailProjectIds)
+        collaboratedProjectIds = [...collaboratedProjectIds, ...emailProjectIds]
+      }
+
+      // Also try case-insensitive email match
+      const { data: emailCollaboratedProjectsCaseInsensitive, error: emailErrorCaseInsensitive } = await supabase
+        .from("project_collaborators")
+        .select("project_id")
+        .ilike("user_email", user.email)
+
+      if (emailErrorCaseInsensitive) {
+        console.log("Case-insensitive email collaboration check failed:", emailErrorCaseInsensitive.message)
+      } else {
+        const emailProjectIdsCaseInsensitive = emailCollaboratedProjectsCaseInsensitive?.map(c => c.project_id) || []
+        console.log("[v0] Collaborations by email (case-insensitive):", emailProjectIdsCaseInsensitive)
+        collaboratedProjectIds = [...collaboratedProjectIds, ...emailProjectIdsCaseInsensitive]
+      }
     } catch (collaborationError) {
-      // If project_collaborators table doesn't exist or has issues, just return owned projects
-      console.log("Collaboration table not available, returning only owned projects")
+      console.log("Collaboration system not available (this is normal if not set up yet):", collaborationError.message)
     }
 
     const projectIds = [
@@ -148,6 +199,7 @@ export async function getUserProjectsClient(): Promise<string[]> {
     console.log("[v0] getUserProjectsClient - Owned projects:", ownedProjects?.length || 0)
     console.log("[v0] getUserProjectsClient - Collaborated projects:", collaboratedProjectIds.length)
     console.log("[v0] getUserProjectsClient - Total accessible projects:", uniqueProjectIds.length)
+    console.log("[v0] getUserProjectsClient - Project IDs:", uniqueProjectIds)
     
     return uniqueProjectIds
   } catch (error) {
