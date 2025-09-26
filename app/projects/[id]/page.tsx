@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { ProjectDetail } from "@/components/project-detail"
+import { checkProjectPermission } from "@/lib/permissions"
 
 interface ProjectPageProps {
   params: Promise<{ id: string }>
@@ -15,6 +16,13 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
     redirect("/auth/login")
   }
 
+  // Check project permissions
+  const permissions = await checkProjectPermission(id)
+  
+  if (!permissions.canView) {
+    redirect("/")
+  }
+
   // Fetch project data
   const { data: project, error: projectError } = await supabase.from("projects").select("*").eq("id", id).single()
 
@@ -22,5 +30,5 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
     redirect("/")
   }
 
-  return <ProjectDetail projectId={id} />
+  return <ProjectDetail projectId={id} permissions={permissions} />
 }

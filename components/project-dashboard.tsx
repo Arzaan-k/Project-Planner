@@ -7,6 +7,9 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Plus, Calendar, GitBranch, ExternalLink, BarChart3, Clock } from "lucide-react"
 import { ProjectForm } from "@/components/project-form"
+import { CollaboratorInvitations } from "@/components/collaborator-invitations"
+import { DatabaseTest } from "@/components/database-test"
+import { getUserProjectsClient } from "@/lib/permissions-client"
 import Link from "next/link"
 import PixelCard from "@/components/backgrounds/PixelCard"
 // import Beams from "@/components/backgrounds/Beams"
@@ -27,6 +30,7 @@ interface Project {
   total_hours_logged: number
   created_at: string
   updated_at: string
+  user_id: string
 }
 
 export function ProjectDashboard() {
@@ -34,6 +38,8 @@ export function ProjectDashboard() {
   const [isLoading, setIsLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingProject, setEditingProject] = useState<Project | null>(null)
+  const [userProjects, setUserProjects] = useState<string[]>([])
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
   const supabase = createClient()
 
@@ -43,9 +49,26 @@ export function ProjectDashboard() {
 
   const fetchProjects = async () => {
     try {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        setCurrentUserId(user.id)
+      }
+
+      // Get projects the user has access to
+      const accessibleProjectIds = await getUserProjectsClient()
+      setUserProjects(accessibleProjectIds)
+      
+      if (accessibleProjectIds.length === 0) {
+        setProjects([])
+        setIsLoading(false)
+        return
+      }
+
       const { data, error } = await supabase
         .from("projects")
         .select("*, total_hours_logged")
+        .in("id", accessibleProjectIds)
         .order("created_at", { ascending: false })
 
       if (error) throw error
@@ -80,6 +103,7 @@ export function ProjectDashboard() {
       console.error("Error deleting project:", error)
     }
   }
+
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -167,6 +191,16 @@ export function ProjectDashboard() {
                 New Project
               </Button>
             </div>
+          </div>
+
+          {/* Database Test */}
+          <div className="mb-8">
+            <DatabaseTest />
+          </div>
+
+          {/* Collaborator Invitations */}
+          <div className="mb-8">
+            <CollaboratorInvitations />
           </div>
 
           {isLoading ? (
@@ -306,17 +340,21 @@ export function ProjectDashboard() {
                           View Details
                         </Button>
                       </Link>
-                      <Button variant="outline" size="sm" onClick={() => handleEdit(project)}>
-                        Edit
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDelete(project.id)}
-                        className="text-destructive hover:text-destructive"
-                      >
-                        Delete
-                      </Button>
+                      {currentUserId === project.user_id && (
+                        <>
+                          <Button variant="outline" size="sm" onClick={() => handleEdit(project)}>
+                            Edit
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDelete(project.id)}
+                            className="text-destructive hover:text-destructive"
+                          >
+                            Delete
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </PixelCard>

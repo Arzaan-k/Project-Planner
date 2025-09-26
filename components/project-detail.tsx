@@ -26,6 +26,8 @@ import { EnhancedTaskForm } from "@/components/enhanced-task-form"
 import { TeamManagement } from "@/components/team-management"
 import { TimeTracking } from "@/components/time-tracking"
 import { FeatureRequests } from "@/components/feature-requests"
+import { CollaboratorInvitation } from "@/components/collaborator-invitation"
+import { ProjectPermission } from "@/lib/permissions"
 
 interface Project {
   id: string
@@ -86,15 +88,30 @@ interface TeamMember {
   role: string
 }
 
-interface ProjectDetailProps {
-  projectId: string
+interface Collaborator {
+  id: string
+  project_id: string
+  user_email: string
+  user_id: string | null
+  role: "owner" | "collaborator" | "viewer"
+  status: "pending" | "accepted" | "declined"
+  invited_by: string
+  invited_at: string
+  accepted_at: string | null
+  user_name?: string
 }
 
-export function ProjectDetail({ projectId }: ProjectDetailProps) {
+interface ProjectDetailProps {
+  projectId: string
+  permissions: ProjectPermission
+}
+
+export function ProjectDetail({ projectId, permissions }: ProjectDetailProps) {
   const [project, setProject] = useState<Project | null>(null)
   const [milestones, setMilestones] = useState<Milestone[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([])
+  const [collaborators, setCollaborators] = useState<Collaborator[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [showMilestoneForm, setShowMilestoneForm] = useState(false)
   const [showTaskForm, setShowTaskForm] = useState(false)
@@ -151,6 +168,16 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
 
       if (teamError) throw teamError
       setTeamMembers(teamData || [])
+
+      // Fetch collaborators
+      const { data: collaboratorsData, error: collaboratorsError } = await supabase
+        .from("project_collaborators")
+        .select("*")
+        .eq("project_id", projectId)
+        .order("invited_at", { ascending: false })
+
+      if (collaboratorsError) throw collaboratorsError
+      setCollaborators(collaboratorsData || [])
     } catch (error) {
       console.error("Error fetching project data:", error)
     } finally {
@@ -168,6 +195,10 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
     fetchProjectData()
     setShowTaskForm(false)
     setEditingTask(null)
+  }
+
+  const handleCollaboratorsChange = () => {
+    fetchProjectData()
   }
 
   const updateMilestoneStatus = async (milestoneId: string, status: string) => {
@@ -444,10 +475,13 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
 
         {/* Tabs for all project sections */}
         <Tabs defaultValue="milestones" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className={`grid w-full ${permissions.canInviteCollaborators ? 'grid-cols-6' : 'grid-cols-5'}`}>
             <TabsTrigger value="milestones">Milestones</TabsTrigger>
             <TabsTrigger value="tasks">Tasks</TabsTrigger>
             <TabsTrigger value="team">Team</TabsTrigger>
+            {permissions.canInviteCollaborators && (
+              <TabsTrigger value="collaborators">Collaborators</TabsTrigger>
+            )}
             <TabsTrigger value="time">Time Tracking</TabsTrigger>
             <TabsTrigger value="features">Feature Requests</TabsTrigger>
           </TabsList>
@@ -460,10 +494,12 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
                     <CardTitle>Project Milestones</CardTitle>
                     <CardDescription>Track major project phases and deliverables</CardDescription>
                   </div>
-                  <Button onClick={() => setShowMilestoneForm(true)}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Milestone
-                  </Button>
+                  {permissions.canEdit && (
+                    <Button onClick={() => setShowMilestoneForm(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Milestone
+                    </Button>
+                  )}
                 </div>
               </CardHeader>
               <CardContent>
@@ -472,7 +508,9 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
                     <Target className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                     <h3 className="text-lg font-semibold mb-2">No milestones yet</h3>
                     <p className="text-muted-foreground mb-4">Add milestones to track major project phases</p>
-                    <Button onClick={() => setShowMilestoneForm(true)}>Add First Milestone</Button>
+                    {permissions.canEdit && (
+                      <Button onClick={() => setShowMilestoneForm(true)}>Add First Milestone</Button>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -544,10 +582,12 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
                       Manage detailed tasks with automatic time tracking and team assignments
                     </CardDescription>
                   </div>
-                  <Button onClick={() => setShowTaskForm(true)}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Task
-                  </Button>
+                  {permissions.canEdit && (
+                    <Button onClick={() => setShowTaskForm(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Task
+                    </Button>
+                  )}
                 </div>
               </CardHeader>
               <CardContent>
@@ -558,7 +598,9 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
                     <p className="text-muted-foreground mb-4">
                       Add tasks to break down your project work with automatic time tracking
                     </p>
-                    <Button onClick={() => setShowTaskForm(true)}>Add First Task</Button>
+                    {permissions.canEdit && (
+                      <Button onClick={() => setShowTaskForm(true)}>Add First Task</Button>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -641,6 +683,16 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
           <TabsContent value="team">
             <TeamManagement projectId={projectId} />
           </TabsContent>
+
+          {permissions.canInviteCollaborators && (
+            <TabsContent value="collaborators">
+              <CollaboratorInvitation 
+                projectId={projectId} 
+                collaborators={collaborators}
+                onCollaboratorsChange={handleCollaboratorsChange}
+              />
+            </TabsContent>
+          )}
 
           <TabsContent value="time">
             <TimeTracking projectId={projectId} />
