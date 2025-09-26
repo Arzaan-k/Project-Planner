@@ -52,9 +52,47 @@ export async function sendCollaboratorInvitation(
 
     if (error) throw error
 
+    // Get inviter name for notification
+    const { data: inviter } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", user.id)
+      .single()
+
+    const inviterName = inviter?.full_name || user.email || "Unknown User"
+
     // In a real application, you would send an email here
-    // For now, we'll just log it
+    // For now, we'll create a notification in the database
     console.log(`Invitation sent to ${email} for project "${project.title}" with role "${role}"`)
+    
+    // Create a notification for the invited user (if they exist)
+    const { data: invitedUser } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("email", email.toLowerCase())
+      .single()
+
+    if (invitedUser) {
+      // Create notification
+      await supabase
+        .from("notifications")
+        .insert({
+          user_id: invitedUser.id,
+          title: "New Collaboration Invitation",
+          message: `You've been invited to collaborate on "${project.title}" as a ${role} by ${inviterName}`,
+          type: "invitation",
+          data: {
+            project_id: projectId,
+            invitation_id: (await supabase
+              .from("project_collaborators")
+              .select("id")
+              .eq("project_id", projectId)
+              .eq("user_email", email.toLowerCase())
+              .single()
+            ).data?.id
+          }
+        })
+    }
     
     // You could integrate with services like:
     // - Resend

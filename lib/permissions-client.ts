@@ -112,16 +112,25 @@ export async function getUserProjectsClient(): Promise<string[]> {
       .select("id")
       .eq("user_id", user.id)
 
-    // Get projects where user is a collaborator
-    const { data: collaboratedProjects } = await supabase
-      .from("project_collaborators")
-      .select("project_id")
-      .eq("user_id", user.id)
-      .eq("status", "accepted")
+    let collaboratedProjectIds: string[] = []
+
+    // Try to get projects where user is a collaborator (if table exists)
+    try {
+      const { data: collaboratedProjects } = await supabase
+        .from("project_collaborators")
+        .select("project_id")
+        .eq("user_id", user.id)
+        .eq("status", "accepted")
+
+      collaboratedProjectIds = collaboratedProjects?.map(c => c.project_id) || []
+    } catch (collaborationError) {
+      // If project_collaborators table doesn't exist or has issues, just return owned projects
+      console.log("Collaboration table not available, returning only owned projects")
+    }
 
     const projectIds = [
       ...(ownedProjects?.map(p => p.id) || []),
-      ...(collaboratedProjects?.map(c => c.project_id) || [])
+      ...collaboratedProjectIds
     ]
 
     return [...new Set(projectIds)] // Remove duplicates

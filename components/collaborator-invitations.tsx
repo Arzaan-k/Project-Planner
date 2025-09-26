@@ -39,39 +39,49 @@ export function CollaboratorInvitations() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      const { data, error } = await supabase
-        .from("project_collaborators")
-        .select(`
-          *,
-          projects (
-            title,
-            description
-          )
-        `)
-        .eq("user_email", user.email)
-        .eq("status", "pending")
-        .order("invited_at", { ascending: false })
+      // Try to fetch invitations, but handle case where table doesn't exist
+      try {
+        const { data, error } = await supabase
+          .from("project_collaborators")
+          .select(`
+            *,
+            projects (
+              title,
+              description
+            )
+          `)
+          .eq("user_email", user.email)
+          .eq("status", "pending")
+          .order("invited_at", { ascending: false })
 
-      if (error) throw error
+        if (error) throw error
 
-      // Transform the data to include project and inviter info
-      const transformedInvitations = data?.map(invitation => ({
-        id: invitation.id,
-        project_id: invitation.project_id,
-        user_email: invitation.user_email,
-        role: invitation.role,
-        status: invitation.status,
-        invited_at: invitation.invited_at,
-        accepted_at: invitation.accepted_at,
-        project_title: invitation.projects?.title || "Unknown Project",
-        project_description: invitation.projects?.description || "",
-        inviter_name: "Project Owner" // We could fetch this from the inviter's profile
-      })) || []
+        // Transform the data to include project and inviter info
+        const transformedInvitations = data?.map(invitation => ({
+          id: invitation.id,
+          project_id: invitation.project_id,
+          user_email: invitation.user_email,
+          role: invitation.role,
+          status: invitation.status,
+          invited_at: invitation.invited_at,
+          accepted_at: invitation.accepted_at,
+          project_title: invitation.projects?.title || "Unknown Project",
+          project_description: invitation.projects?.description || "",
+          inviter_name: "Project Owner" // We could fetch this from the inviter's profile
+        })) || []
 
-      setInvitations(transformedInvitations)
+        setInvitations(transformedInvitations)
+      } catch (tableError) {
+        // If project_collaborators table doesn't exist, just show empty state
+        console.log("Collaboration table not available yet")
+        setInvitations([])
+      }
     } catch (error) {
       console.error("Error fetching invitations:", error)
-      toast.error("Failed to load invitations")
+      // Don't show error toast for missing table, just log it
+      if (!error.message?.includes("project_collaborators")) {
+        toast.error("Failed to load invitations")
+      }
     } finally {
       setIsLoading(false)
     }
@@ -84,6 +94,8 @@ export function CollaboratorInvitations() {
       if (result.success) {
         toast.success(result.message)
         fetchInvitations()
+        // Refresh the page to update project access
+        window.location.reload()
       } else {
         toast.error(result.message)
       }

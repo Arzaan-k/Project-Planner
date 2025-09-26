@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge"
 import { Plus, Calendar, GitBranch, ExternalLink, BarChart3, Clock } from "lucide-react"
 import { ProjectForm } from "@/components/project-form"
 import { CollaboratorInvitations } from "@/components/collaborator-invitations"
-import { DatabaseTest } from "@/components/database-test"
 import { getUserProjectsClient } from "@/lib/permissions-client"
 import Link from "next/link"
 import PixelCard from "@/components/backgrounds/PixelCard"
@@ -191,11 +190,6 @@ export function ProjectDashboard() {
                 New Project
               </Button>
             </div>
-          </div>
-
-          {/* Database Test */}
-          <div className="mb-8">
-            <DatabaseTest />
           </div>
 
           {/* Collaborator Invitations */}
