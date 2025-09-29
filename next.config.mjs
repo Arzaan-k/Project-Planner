@@ -9,6 +9,10 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // Disable Vercel Analytics for now to prevent 404 errors
+  experimental: {
+    instrumentationHook: false,
+  },
 }
 
 export default nextConfig

@@ -77,6 +77,19 @@ export function TeamManagement({ projectId, permissions }: TeamManagementProps) 
       } = await supabase.auth.getUser()
       if (!user) throw new Error("User not authenticated")
 
+      // Check if user is already a team member
+      const { data: existingMember } = await supabase
+        .from("team_members")
+        .select("id")
+        .eq("project_id", projectId)
+        .eq("user_id", user.id)
+        .single()
+
+      if (existingMember) {
+        alert("You are already a member of this project team.")
+        return
+      }
+
       const { error } = await supabase.from("team_members").insert([
         {
           project_id: projectId,
@@ -85,13 +98,20 @@ export function TeamManagement({ projectId, permissions }: TeamManagementProps) 
         },
       ])
 
-      if (error) throw error
+      if (error) {
+        if (error.code === '23505') {
+          alert("This user is already a member of this project team.")
+          return
+        }
+        throw error
+      }
 
       setNewMember({ name: "", email: "", role: "member", avatar_url: "" })
       setShowAddForm(false)
       fetchTeamMembers()
     } catch (error) {
       console.error("Error adding team member:", error)
+      alert("Failed to add team member. Please try again.")
     }
   }
 
