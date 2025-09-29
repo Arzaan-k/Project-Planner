@@ -71,47 +71,152 @@ export function TeamManagement({ projectId, permissions }: TeamManagementProps) 
   }
 
   const addTeamMember = async () => {
+    // Validate input
+    if (!newMember.name.trim()) {
+      alert("Please enter a name for the team member.")
+      return
+    }
+    if (!newMember.email.trim()) {
+      alert("Please enter an email address for the team member.")
+      return
+    }
+    if (!newMember.email.includes('@')) {
+      alert("Please enter a valid email address.")
+      return
+    }
+
     try {
       const {
         data: { user },
       } = await supabase.auth.getUser()
-      if (!user) throw new Error("User not authenticated")
-
-      // Check if user is already a team member
-      const { data: existingMember } = await supabase
-        .from("team_members")
-        .select("id")
-        .eq("project_id", projectId)
-        .eq("user_id", user.id)
-        .single()
-
-      if (existingMember) {
-        alert("You are already a member of this project team.")
+      if (!user) {
+        alert("You must be logged in to add team members.")
         return
       }
 
-      const { error } = await supabase.from("team_members").insert([
-        {
-          project_id: projectId,
-          user_id: user.id,
-          ...newMember,
-        },
-      ])
+      // Normalize email
+      const normalizedEmail = newMember.email.toLowerCase().trim()
 
-      if (error) {
-        if (error.code === '23505') {
-          alert("This user is already a member of this project team.")
-          return
-        }
-        throw error
+      // Check if this email is already a team member
+      const { data: existingMember, error: checkError } = await supabase
+        .from("team_members")
+        .select("id, name")
+        .eq("project_id", projectId)
+        .eq("email", normalizedEmail)
+        .maybeSingle()
+
+      if (checkError) {
+        console.error("Error checking existing member:", checkError)
+        // Continue anyway, the insert will handle duplicates
       }
 
+      if (existingMember) {
+        alert(`This email (${normalizedEmail}) is already a member of this project team.`)
+        return
+      }
+
+      // Prepare team member data
+      const teamMemberData = {
+        project_id: projectId,
+        user_id: null, // Will be populated when user signs up
+        name: newMember.name.trim(),
+        email: normalizedEmail,
+        role: newMember.role,
+        avatar_url: newMember.avatar_url?.trim() || null,
+      }
+
+      // Insert team member
+      const { data: insertedMember, error: insertError } = await supabase
+        .from("team_members")
+        .insert([teamMemberData])
+        .select()
+        .single()
+
+      if (insertError) {
+        console.error("Insert error details:", insertError)
+        
+        // Try fallback method if main insert fails
+        if (insertError.code === '23502' || insertError.message?.includes('null value')) {
+          console.log("Trying fallback method without user_id constraint...")
+          return await addTeamMemberFallback(teamMemberData)
+        }
+        
+        // Handle specific error cases
+        if (insertError.code === '23505') {
+          alert("This email is already a member of this project team.")
+          return
+        } else if (insertError.code === '23503') {
+          alert("Invalid project reference. Please refresh the page and try again.")
+          return
+        } else if (insertError.message?.includes('permission denied')) {
+          alert("You don't have permission to add team members to this project.")
+          return
+        } else {
+          alert(`Failed to add team member: ${insertError.message}`)
+          return
+        }
+      }
+
+      // Success!
+      console.log("Team member added successfully:", insertedMember)
+      
+      // Reset form and close dialog
       setNewMember({ name: "", email: "", role: "member", avatar_url: "" })
       setShowAddForm(false)
-      fetchTeamMembers()
+      
+      // Refresh team members list
+      await fetchTeamMembers()
+      
+      // Show success message
+      alert(`Successfully added ${newMember.name} to the team!`)
+
     } catch (error) {
-      console.error("Error adding team member:", error)
-      alert("Failed to add team member. Please try again.")
+      console.error("Unexpected error adding team member:", error)
+      alert("An unexpected error occurred. Please try again or contact support if the problem persists.")
+    }
+  }
+
+  // Fallback method for adding team members
+  const addTeamMemberFallback = async (teamMemberData: any) => {
+    try {
+      console.log("Using fallback method to add team member...")
+      
+      // Try with minimal required fields only
+      const fallbackData = {
+        project_id: teamMemberData.project_id,
+        name: teamMemberData.name,
+        email: teamMemberData.email,
+        role: teamMemberData.role,
+      }
+
+      const { data: insertedMember, error: insertError } = await supabase
+        .from("team_members")
+        .insert([fallbackData])
+        .select()
+        .single()
+
+      if (insertError) {
+        console.error("Fallback insert error:", insertError)
+        alert(`Failed to add team member: ${insertError.message}`)
+        return
+      }
+
+      // Success with fallback!
+      console.log("Team member added successfully with fallback method:", insertedMember)
+      
+      // Reset form and close dialog
+      setNewMember({ name: "", email: "", role: "member", avatar_url: "" })
+      setShowAddForm(false)
+      
+      // Refresh team members list
+      await fetchTeamMembers()
+      
+      // Show success message
+      alert(`Successfully added ${teamMemberData.name} to the team!`)
+
+    } catch (error) {
+      console.error("Fallback method also failed:", error)
+      alert("Unable to add team member. Please check your database permissions or contact support.")
     }
   }
 
