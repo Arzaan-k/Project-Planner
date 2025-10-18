@@ -55,12 +55,32 @@ export function FeatureRequests({ projectId, permissions }: FeatureRequestsProps
     estimated_hours: "",
     business_value: "",
   })
+  const [formError, setFormError] = useState<string | null>(null)
 
   const supabase = createClient()
 
   useEffect(() => {
     fetchFeatureRequests()
   }, [projectId])
+
+  // Prefill requester info from authenticated user
+  useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          setNewRequest((prev) => ({
+            ...prev,
+            requested_by_name: user.user_metadata?.full_name || prev.requested_by_name,
+            requested_by_email: user.email || prev.requested_by_email,
+          }))
+        }
+      } catch {
+        // ignore
+      }
+    }
+    loadUser()
+  }, [])
 
   const fetchFeatureRequests = async () => {
     try {
@@ -81,10 +101,26 @@ export function FeatureRequests({ projectId, permissions }: FeatureRequestsProps
 
   const addFeatureRequest = async () => {
     try {
+      setFormError(null)
+      const trimmedTitle = newRequest.title.trim()
+      const trimmedDescription = newRequest.description.trim()
+
+      if (!trimmedTitle || !trimmedDescription) {
+        setFormError("Title and description are required")
+        return
+      }
+
       const requestData = {
         project_id: projectId,
-        ...newRequest,
+        // Persist sanitized values so list never shows blank rows
+        title: trimmedTitle,
+        description: trimmedDescription,
+        priority: newRequest.priority || "medium",
+        requested_by_name: newRequest.requested_by_name?.trim() || "Unknown",
+        requested_by_email: newRequest.requested_by_email?.trim() || "unknown@example.com",
+        stakeholder_type: newRequest.stakeholder_type || "client",
         estimated_hours: newRequest.estimated_hours ? Number.parseInt(newRequest.estimated_hours) : null,
+        business_value: newRequest.business_value?.trim() || null,
       }
 
       const { error } = await supabase.from("feature_requests").insert([requestData])
@@ -105,11 +141,13 @@ export function FeatureRequests({ projectId, permissions }: FeatureRequestsProps
       fetchFeatureRequests()
     } catch (error) {
       console.error("Error adding feature request:", error)
+      setFormError("Failed to add request. Please try again.")
     }
   }
 
   const updateRequestStatus = async (requestId: string, newStatus: string) => {
     try {
+      if (!permissions?.canEdit) return
       const { error } = await supabase.from("feature_requests").update({ status: newStatus }).eq("id", requestId)
 
       if (error) throw error
@@ -185,6 +223,11 @@ export function FeatureRequests({ projectId, permissions }: FeatureRequestsProps
                 <DialogTitle>Add Feature Request</DialogTitle>
                 <DialogDescription>Record a new feature request from stakeholders</DialogDescription>
               </DialogHeader>
+              {formError && (
+                <div className="p-3 rounded border border-destructive/30 bg-destructive/10 text-destructive text-sm">
+                  {formError}
+                </div>
+              )}
               <div className="space-y-4 max-h-96 overflow-y-auto">
                 <div className="space-y-2">
                   <Label htmlFor="title">Feature Title</Label>
@@ -193,6 +236,7 @@ export function FeatureRequests({ projectId, permissions }: FeatureRequestsProps
                     value={newRequest.title}
                     onChange={(e) => setNewRequest({ ...newRequest, title: e.target.value })}
                     placeholder="Brief description of the feature"
+                    required
                   />
                 </div>
                 <div className="space-y-2">
@@ -203,6 +247,7 @@ export function FeatureRequests({ projectId, permissions }: FeatureRequestsProps
                     onChange={(e) => setNewRequest({ ...newRequest, description: e.target.value })}
                     placeholder="Detailed description of the requested feature"
                     rows={4}
+                    required
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -319,16 +364,16 @@ export function FeatureRequests({ projectId, permissions }: FeatureRequestsProps
               <div key={request.id} className="p-4 border rounded-lg">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1">
-                    <h4 className="font-medium mb-1">{request.title}</h4>
-                    <p className="text-sm text-muted-foreground mb-2">{request.description}</p>
+                    <h4 className="font-medium mb-1">{request.title?.trim() || "(Untitled request)"}</h4>
+                    <p className="text-sm text-muted-foreground mb-2">{request.description?.trim() || "No description provided"}</p>
                     <div className="flex items-center gap-4 text-xs text-muted-foreground">
                       <div className="flex items-center gap-1">
                         <User className="h-3 w-3" />
-                        {request.requested_by_name}
+                        {request.requested_by_name?.trim() || "Unknown"}
                       </div>
                       <div className="flex items-center gap-1">
                         <Mail className="h-3 w-3" />
-                        {request.requested_by_email}
+                        {request.requested_by_email?.trim() || "unknown@example.com"}
                       </div>
                       {request.estimated_hours && (
                         <div className="flex items-center gap-1">
@@ -346,7 +391,7 @@ export function FeatureRequests({ projectId, permissions }: FeatureRequestsProps
                       </Badge>
                       <Badge className={getPriorityColor(request.priority)}>{request.priority}</Badge>
                     </div>
-                    <Select value={request.status} onValueChange={(value) => updateRequestStatus(request.id, value)}>
+                    <Select value={request.status} onValueChange={(value) => updateRequestStatus(request.id, value)} disabled={!permissions?.canEdit}>
                       <SelectTrigger className="w-32">
                         <SelectValue />
                       </SelectTrigger>
