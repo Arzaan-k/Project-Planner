@@ -85,13 +85,13 @@ export function TaskForm({ projectId, milestones, task, onSave, onCancel }: Task
       const taskData = {
         title: formData.title,
         description: formData.description,
-        milestone_id: formData.milestone_id || null,
+        milestone_id: formData.milestone_id && formData.milestone_id !== "none" ? formData.milestone_id : null,
         estimated_hours: formData.estimated_hours ? Number.parseInt(formData.estimated_hours) : null,
         actual_hours: formData.actual_hours ? Number.parseInt(formData.actual_hours) : null,
         status: formData.status,
         priority: formData.priority,
         due_date: formData.due_date || null,
-        assigned_to: formData.assigned_to || null,
+        assigned_to: formData.assigned_to && formData.assigned_to !== "none" ? formData.assigned_to : null,
         project_id: projectId,
       }
 
@@ -110,7 +110,21 @@ export function TaskForm({ projectId, milestones, task, onSave, onCancel }: Task
       onSave()
     } catch (error) {
       console.error("Error saving task:", error)
-      setError(error instanceof Error ? error.message : "An error occurred")
+      console.error("Error details:", {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint
+      })
+      const errorMessage = error instanceof Error ? error.message : "An error occurred";
+      const detailedError = error instanceof Error ? {
+        message: error.message,
+        name: error.name,
+        stack: error.stack
+      } : error;
+      
+      console.error("Detailed error:", detailedError);
+      setError(errorMessage);
     } finally {
       setIsLoading(false)
     }

@@ -19,6 +19,7 @@ import {
   Circle,
   PlayCircle,
   User,
+  LogOut,
 } from "lucide-react"
 import Link from "next/link"
 import { MilestoneForm } from "@/components/milestone-form"
@@ -246,6 +247,17 @@ export function ProjectDetail({ projectId, permissions }: ProjectDetailProps) {
     }
   }
 
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut()
+      if (error) throw error
+      // Redirect to login page
+      window.location.href = "/auth/login"
+    } catch (error) {
+      console.error("Error logging out:", error)
+    }
+  }
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "completed":
@@ -370,6 +382,10 @@ export function ProjectDetail({ projectId, permissions }: ProjectDetailProps) {
               <Badge className={getPriorityColor(project.priority)}>{project.priority}</Badge>
             </div>
           </div>
+          <Button onClick={handleLogout} variant="outline" size="sm" className="flex items-center gap-2">
+            <LogOut className="h-4 w-4" />
+            Logout
+          </Button>
         </div>
 
         {/* Project Overview */}

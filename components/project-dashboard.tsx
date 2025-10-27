@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Calendar, GitBranch, ExternalLink, BarChart3, Clock } from "lucide-react"
+import { Plus, Calendar, GitBranch, ExternalLink, BarChart3, Clock, LogOut } from "lucide-react"
 import { ProjectForm } from "@/components/project-form"
 import { CollaboratorInvitations } from "@/components/collaborator-invitations"
 import { getUserProjectsClient } from "@/lib/permissions-client"
@@ -106,6 +106,17 @@ export function ProjectDashboard() {
     }
   }
 
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut()
+      if (error) throw error
+      // Redirect to login page
+      window.location.href = "/auth/login"
+    } catch (error) {
+      console.error("Error logging out:", error)
+    }
+  }
+
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -188,6 +199,10 @@ export function ProjectDashboard() {
                   Analytics
                 </Button>
               </Link>
+              <Button onClick={handleLogout} variant="outline" className="flex items-center gap-2 bg-transparent">
+                <LogOut className="h-4 w-4" />
+                Logout
+              </Button>
               <Button onClick={() => setShowForm(true)} className="flex items-center gap-2">
                 <Plus className="h-4 w-4" />
                 New Project
